@@ -1,19 +1,11 @@
+import { createClient } from '@supabase/supabase-js';
 
-// O CarbonCar agora opera no modo Local-First. 
-// Todas as operações de banco de dados foram migradas para persistência em localStorage e estado do React.
-export const supabase = {
-    auth: {
-        getUser: async () => ({ data: { user: null } }),
-        getSession: async () => ({ data: { session: null } }),
-        onAuthStateChange: () => ({ data: { subscription: { unsubscribe: () => {} } } }),
-        signOut: async () => {},
-        signUp: async () => ({ data: { user: null }, error: null }),
-        signInWithPassword: async () => ({ data: { user: null }, error: null })
-    },
-    from: () => ({
-        select: () => ({ eq: () => ({ single: () => ({ data: null, error: null }), maybeSingle: () => ({ data: null, error: null }), order: () => ({ data: [], error: null }) }) }),
-        insert: () => ({ select: () => ({ single: () => ({ data: null, error: null }) }) }),
-        update: () => ({ eq: () => ({ data: null, error: null }) }),
-        delete: () => ({ eq: () => ({ data: null, error: null }) })
-    })
-};
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    persistSession: true,
+    autoRefreshToken: true,
+  }
+});

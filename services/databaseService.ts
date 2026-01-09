@@ -26,6 +26,40 @@ export interface Studio {
   updated_at?: string;
 }
 
+export interface StudioUser {
+  id: string;
+  studio_id: string;
+  auth_user_id: string;
+  role: 'ADMIN' | 'MANAGER' | 'STAFF';
+  name: string;
+  email: string;
+  phone?: string;
+  is_active: boolean;
+}
+
+export interface Subscription {
+  id: string;
+  studio_id: string;
+  plan_id: string;
+  status: 'TRIAL' | 'ACTIVE' | 'PAUSED' | 'CANCELLED';
+  billing_cycle: 'MONTHLY' | 'ANNUAL';
+  trial_ends_at?: string;
+  current_period_start: string;
+  current_period_end?: string;
+}
+
+export interface Plan {
+  id: string;
+  slug: string;
+  name: 'START' | 'PRO' | 'ELITE';
+  description?: string;
+  monthly_price: number;
+  annual_price: number;
+  max_boxes: number;
+  max_patio_capacity: number;
+  features: string[];
+}
+
 export const databaseService = {
   async getStudioBySlug(slug: string): Promise<Studio | null> {
     const { data, error } = await supabase
@@ -372,5 +406,220 @@ export const databaseService = {
       return false;
     }
     return true;
+  },
+
+  async getPlans(): Promise<Plan[]> {
+    const { data, error } = await supabase
+      .from('plans')
+      .select('*')
+      .eq('is_active', true)
+      .order('monthly_price', { ascending: true });
+
+    if (error) {
+      console.error('Error fetching plans:', error);
+      return [];
+    }
+    return data || [];
+  },
+
+  async getSubscription(studioId: string): Promise<Subscription | null> {
+    const { data, error } = await supabase
+      .from('subscriptions')
+      .select('*')
+      .eq('studio_id', studioId)
+      .maybeSingle();
+
+    if (error) {
+      console.error('Error fetching subscription:', error);
+      return null;
+    }
+    return data;
+  },
+
+  async createSubscription(studioId: string, planId: string, billingCycle: 'MONTHLY' | 'ANNUAL'): Promise<Subscription | null> {
+    const trialEnd = new Date();
+    trialEnd.setDate(trialEnd.getDate() + 7);
+
+    const { data, error } = await supabase
+      .from('subscriptions')
+      .insert([{
+        studio_id: studioId,
+        plan_id: planId,
+        status: 'TRIAL',
+        billing_cycle: billingCycle,
+        trial_ends_at: trialEnd.toISOString(),
+        current_period_start: new Date().toISOString()
+      }])
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Error creating subscription:', error);
+      return null;
+    }
+    return data;
+  },
+
+  async getInvoices(studioId: string): Promise<any[]> {
+    const { data, error } = await supabase
+      .from('invoices')
+      .select('*')
+      .eq('studio_id', studioId)
+      .order('issued_at', { ascending: false });
+
+    if (error) {
+      console.error('Error fetching invoices:', error);
+      return [];
+    }
+    return data || [];
+  },
+
+  async createNotification(studioId: string, notification: any): Promise<any | null> {
+    const { data, error } = await supabase
+      .from('notifications')
+      .insert([{
+        studio_id: studioId,
+        type: notification.type,
+        subject: notification.subject,
+        body: notification.body,
+        recipient: notification.recipient,
+        status: 'PENDING'
+      }])
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Error creating notification:', error);
+      return null;
+    }
+    return data;
+  },
+
+  async getNotifications(studioId: string): Promise<any[]> {
+    const { data, error } = await supabase
+      .from('notifications')
+      .select('*')
+      .eq('studio_id', studioId)
+      .order('created_at', { ascending: false })
+      .limit(50);
+
+    if (error) {
+      console.error('Error fetching notifications:', error);
+      return [];
+    }
+    return data || [];
+  },
+
+  async createStudioUser(studioId: string, user: Partial<StudioUser>): Promise<StudioUser | null> {
+    const { data, error } = await supabase
+      .from('studio_users')
+      .insert([{
+        studio_id: studioId,
+        auth_user_id: user.auth_user_id,
+        role: user.role || 'STAFF',
+        name: user.name,
+        email: user.email,
+        phone: user.phone,
+        is_active: true
+      }])
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Error creating studio user:', error);
+      return null;
+    }
+    return data;
+  },
+
+  async getStudioUsers(studioId: string): Promise<StudioUser[]> {
+    const { data, error } = await supabase
+      .from('studio_users')
+      .select('*')
+      .eq('studio_id', studioId)
+      .eq('is_active', true)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('Error fetching studio users:', error);
+      return [];
+    }
+    return data || [];
+  },
+
+  async getLoyaltyProgram(studioId: string): Promise<any | null> {
+    const { data, error } = await supabase
+      .from('loyalty_programs')
+      .select('*')
+      .eq('studio_id', studioId)
+      .maybeSingle();
+
+    if (error) {
+      console.error('Error fetching loyalty program:', error);
+      return null;
+    }
+    return data;
+  },
+
+  async createLoyaltyProgram(studioId: string, program: any): Promise<any | null> {
+    const { data, error } = await supabase
+      .from('loyalty_programs')
+      .insert([{
+        studio_id: studioId,
+        name: program.name,
+        description: program.description,
+        points_per_real: program.pointsPerReal || 1.0,
+        is_active: true
+      }])
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Error creating loyalty program:', error);
+      return null;
+    }
+    return data;
+  },
+
+  async getScheduleTemplates(studioId: string): Promise<any[]> {
+    const { data, error } = await supabase
+      .from('schedule_templates')
+      .select('*')
+      .eq('studio_id', studioId)
+      .order('day_of_week', { ascending: true });
+
+    if (error) {
+      console.error('Error fetching schedule templates:', error);
+      return [];
+    }
+    return data || [];
+  },
+
+  async getAuditLogs(studioId: string, limit: number = 100): Promise<any[]> {
+    const { data, error } = await supabase
+      .from('audit_logs')
+      .select('*')
+      .eq('studio_id', studioId)
+      .order('created_at', { ascending: false })
+      .limit(limit);
+
+    if (error) {
+      console.error('Error fetching audit logs:', error);
+      return [];
+    }
+    return data || [];
+  },
+
+  async getIntegrations(studioId: string): Promise<any[]> {
+    const { data, error } = await supabase
+      .from('integrations')
+      .select('id, studio_id, type, status, connected_at, updated_at')
+      .eq('studio_id', studioId);
+
+    if (error) {
+      console.error('Error fetching integrations:', error);
+      return [];
+    }
+    return data || [];
   }
 };
